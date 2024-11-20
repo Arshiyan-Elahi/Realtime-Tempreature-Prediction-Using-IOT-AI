@@ -1,0 +1,8 @@
+streamlit
+pandas
+plotly
+prophet
+flask
+flask-cors
+scikit-learn
+numpy
