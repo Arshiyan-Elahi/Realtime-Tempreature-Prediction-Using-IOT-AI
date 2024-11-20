@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temperature & Humidity Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Temperature & Humidity Dashboard</h1>
+
+        <!-- Current Values -->
+        <div class="metrics-container">
+            <div class="metric-card">
+                <h3>Temperature</h3>
+                <p id="temperature">--°C</p>
+            </div>
+            <div class="metric-card">
+                <h3>Humidity</h3>
+                <p id="humidity">--%</p>
+            </div>
+        </div>
+
+        <!-- Chart Tabs -->
+        <div class="tabs">
+            <button class="tab-button active" data-chart="realtime" onclick="showChart('realtime')">Realtime</button>
+            <button class="tab-button" data-chart="forecast" onclick="showChart('forecast')">Forecast</button>
+            <button class="tab-button" data-chart="patterns" onclick="showChart('patterns')">Patterns</button>
+            <button class="tab-button" data-chart="stats" onclick="showChart('stats')">Statistics</button>
+        </div>
+
+        <!-- Chart Containers -->
+        <div id="realtime-container" class="chart-container">
+            <canvas id="realtimeChart"></canvas>
+        </div>
+
+        <div id="forecast-container" class="chart-container" style="display:none;">
+            <canvas id="forecastChart"></canvas>
+        </div>
+
+        <div id="patterns-container" class="chart-container" style="display:none;">
+            <div class="patterns-grid">
+                <div>
+                    <canvas id="dailyPatternChart"></canvas>
+                </div>
+                <div>
+                    <canvas id="weeklyPatternChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div id="stats-container" class="chart-container" style="display:none;">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h4>Average Temperature</h4>
+                    <p id="avg-temp">--°C</p>
+                </div>
+                <div class="stat-card">
+                    <h4>Maximum Temperature</h4>
+                    <p id="max-temp">--°C</p>
+                </div>
+                <div class="stat-card">
+                    <h4>Minimum Temperature</h4>
+                    <p id="min-temp">--°C</p>
+                </div>
+                <div class="stat-card">
+                    <h4>Average Humidity</h4>
+                    <p id="avg-humidity">--%</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let realtimeChart, forecastChart, dailyPatternChart, weeklyPatternChart;
+        const maxDataPoints = 20;
+        let tempData = [];
+        let timeLabels = [];
+
+        // Initialize all charts
+        function initializeCharts() {
+            initRealtimeChart();
+            initForecastChart();
+            initPatternCharts();
+            updateStats();
+        }
+
+        // Initialize realtime chart
+        function initRealtimeChart() {
+            const ctx = document.getElementById('realtimeChart').getContext('2d');
+            realtimeChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: timeLabels,
+                    datasets: [{
+                        label: 'Temperature (°C)',
+                        data: tempData,
+                        borderColor: '#4CAF50',
+                        tension: 0.4,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#fff' }
+                        },
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#fff' }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#fff' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize forecast chart
+        function initForecastChart() {
+            const ctx = document.getElementById('forecastChart').getContext('2d');
+            forecastChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Predicted Temperature',
+                        data: [],
+                        borderColor: '#FF6B6B',
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#fff' }
+                        },
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#fff' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize pattern charts
+        function initPatternCharts() {
+            // Daily pattern chart
+            const dailyCtx = document.getElementById('dailyPatternChart').getContext('2d');
+            dailyPatternChart = new Chart(dailyCtx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+                    datasets: [{
+                        label: 'Daily Temperature Pattern',
+                        data: [],
+                        borderColor: '#4CAF50',
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#fff' }
+                        },
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#fff' }
+                        }
+                    }
+                }
+            });
+
+            // Weekly pattern chart
+            const weeklyCtx = document.getElementById('weeklyPatternChart').getContext('2d');
+            weeklyPatternChart = new Chart(weeklyCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                    datasets: [{
+                        label: 'Weekly Temperature Pattern',
+                        data: [],
+                        borderColor: '#FF6B6B',
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#fff' }
+                        },
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#fff' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update realtime data
+        function updateRealtimeData() {
+            fetch('/latest_data')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.temperature !== null) {
+                        document.getElementById('temperature').textContent = 
+                            `${data.temperature.toFixed(1)}°C`;
+                        document.getElementById('humidity').textContent = 
+                            `${data.humidity.toFixed(1)}%`;
+
+                        const now = new Date().toLocaleTimeString();
+                        tempData.push(data.temperature);
+                        timeLabels.push(now);
+
+                        if (tempData.length > maxDataPoints) {
+                            tempData.shift();
+                            timeLabels.shift();
+                        }
+
+                        realtimeChart.data.labels = timeLabels;
+                        realtimeChart.data.datasets[0].data = tempData;
+                        realtimeChart.update();
+                    }
+                })
+                .catch(console.error);
+        }
+
+        // Update forecast data
+        function updateForecast() {
+            fetch('/forecast')
+                .then(response => response.json())
+                .then(data => {
+                    const labels = data.forecast.map(d => new Date(d.ds).toLocaleTimeString());
+                    const predictions = data.forecast.map(d => d.yhat);
+
+                    forecastChart.data.labels = labels;
+                    forecastChart.data.datasets[0].data = predictions;
+                    forecastChart.update();
+                })
+                .catch(console.error);
+        }
+
+        // Update patterns
+        function updatePatterns() {
+            fetch('/patterns')
+                .then(response => response.json())
+                .then(data => {
+                    // Update daily pattern
+                    dailyPatternChart.data.datasets[0].data = Object.values(data.daily);
+                    dailyPatternChart.update();
+
+                    // Update weekly pattern
+                    weeklyPatternChart.data.datasets[0].data = Object.values(data.weekly);
+                    weeklyPatternChart.update();
+                })
+                .catch(console.error);
+        }
+
+        // Update statistics
+        function updateStats() {
+            fetch('/stats')
+                .then(response => response.json())
+                .then(stats => {
+                    document.getElementById('avg-temp').textContent = `${stats.avg_temp.toFixed(1)}°C`;
+                    document.getElementById('max-temp').textContent = `${stats.max_temp.toFixed(1)}°C`;
+                    document.getElementById('min-temp').textContent = `${stats.min_temp.toFixed(1)}°C`;
+                    document.getElementById('avg-humidity').textContent = `${stats.avg_humidity.toFixed(1)}%`;
+                })
+                .catch(console.error);
+        }
+
+        // Tab switching function
+        function showChart(chartType) {
+            // Hide all charts
+            document.querySelectorAll('.chart-container').forEach(container => {
+                container.style.display = 'none';
+            });
+
+            // Show selected chart
+            document.getElementById(`${chartType}-container`).style.display = 'block';
+
+            // Update buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            document.querySelector(`[data-chart="${chartType}"]`).classList.add('active');
+
+            // Update data based on selected chart
+            if (chartType === 'forecast') {
+                updateForecast();
+            } else if (chartType === 'patterns') {
+                updatePatterns();
+            } else if (chartType === 'stats') {
+                updateStats();
+            }
+        }
+
+        // Initialize and start updates
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeCharts();
+            updateRealtimeData(); // Initial update
+            setInterval(updateRealtimeData, 5000); // Update every 5 seconds
+            setInterval(updateForecast, 60000); // Update forecast every minute
+            setInterval(updatePatterns, 60000); // Update patterns every minute
+            setInterval(updateStats, 60000); // Update stats every minute
+        });
+    </script>
+</body>
+</html>
